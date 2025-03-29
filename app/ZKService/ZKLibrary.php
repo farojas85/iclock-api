@@ -1186,6 +1186,7 @@ class ZKLibrary
 					// ];
 				}
 			}
+
 			return $attendance;
 		} catch (ErrorException $e) {
 			return FALSE;

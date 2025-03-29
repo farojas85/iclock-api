@@ -6,7 +6,7 @@ use App\Models\Marcacion;
 use App\ZKService\ZKLibrary;
 //use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Http;
-
+use Rats\Zkteco\Lib\ZKTeco;
 trait MarcacionTrait
 {
     private $zklib;
@@ -15,12 +15,15 @@ trait MarcacionTrait
     
     public function __construct()
     {
-        $this->zklib = new ZKLibrary(
-            config('zkteco.ip'),
-            config('zkteco.port'),
-            config('zkteco.protocol')
-        );
-
+        if(config('zkteco.establecimiento_master')){
+            $this->zklib = new ZKTeco(config('zkteco.ip'));
+        }else{
+            $this->zklib = new ZKLibrary(
+                config('zkteco.ip'),
+                config('zkteco.port'),
+                config('zkteco.protocol')
+            );
+        }
         $this->tipo_marcacion = [
             0 => 'ENTRADA',
             1 => 'SALIDA',
@@ -40,17 +43,19 @@ trait MarcacionTrait
 
             return $users;
         }
-
         return array();        
     }
 
     public function getAttedances()
     {
+        set_time_limit(0);
         $res = $this->zklib->connect();
+
         if($res)
         {
             $attendances = array_reverse($this->zklib->getAttendance());
-            
+
+
             $this->zklib->disconnect();
             
             return $attendances;
@@ -245,7 +250,11 @@ trait MarcacionTrait
 
         try {
             $ruta = config('app.api_url').'/api/attendances';
+            
+
             $response = Http::get($ruta);
+
+
 
             //return $ruta;
             // Verificar si la respuesta tiene un código 200 (éxito)

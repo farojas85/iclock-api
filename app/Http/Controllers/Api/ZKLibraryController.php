@@ -21,18 +21,28 @@ class ZKLibraryController extends Controller
 
     public function getUsers() {
         $users = $this->marcacion_model->getUsers();
-        //dd($users);
+
         $usuarios = array();
+
         if(count($users))
         {
+
             foreach($users as $user)
             {
-                array_push($usuarios,[
-                    'id' =>json_decode(utf8_encode($user[0]),JSON_UNESCAPED_UNICODE),
-                    'nombre' => $user[1],
-                    'huella' => $user[2],
-                    'pin' => $user[3],
-                ]);
+                if(config('zkteco.establecimiento_master')){
+                    array_push($usuarios,[
+                        'id' =>json_decode(utf8_encode($user['userid']),JSON_UNESCAPED_UNICODE),
+                        'nombre' => $user['name'],
+                    ]);
+                }else{
+                    array_push($usuarios,[
+                        'id' =>json_decode(utf8_encode($user[0]),JSON_UNESCAPED_UNICODE),
+                        'nombre' => $user[1],
+                        'huella' => $user[2],
+                        'pin' => $user[3],
+                    ]);
+                }
+
             }
         }
         //return  json_encode($usuarios,JSON_UNESCAPED_UNICODE);
@@ -47,6 +57,7 @@ class ZKLibraryController extends Controller
     }
 
     public function getAttendances() {
+
         $attendances = $this->marcacion_model->getAttedances();
         
         if($attendances == 404)
@@ -54,7 +65,7 @@ class ZKLibraryController extends Controller
             abort(404);
         }
         
-        return response()->json(count($attendances),200);
+        return response()->json($attendances,200);
     }
 
     public function saveAttendandes() {
@@ -75,7 +86,6 @@ class ZKLibraryController extends Controller
     public function obtenerMarcacionesApi()
     {
         $marcaciones_api= $this->marcacion_model->getAllAttendacesApi();
-
         return response()->json($marcaciones_api,200);
     }
 
