@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\ZKLibraryController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -13,6 +14,8 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-// Route::get('/', function () {
-//     return view('welcome');
-// });
+Route::get('/', function () {
+    return view('welcome');
+});
+Route::post('/guardar-marcaciones',[ZKLibraryController::class,'saveAttendandes']);
+Route::post('/sincronizar-marcaciones',[ZKLibraryController::class,'sincronizarLocalNube']);
