@@ -56,18 +56,23 @@ trait MarcacionTrait
     {
         set_time_limit(0);
         $res = $this->zklib->connect();
-
         if($res)
         {
             $attendances = array_reverse($this->zklib->getAttendance());
-
-
             $this->zklib->disconnect();
-            
             return $attendances;
         }
-
         return 404;
+    }
+    public function cantidadAttendances(){
+        $res = $this->zklib->connect();
+        if($res)
+        {
+            $attendances = $this->zklib->getAttendance();
+            $this->zklib->disconnect();
+            return count($attendances);
+        }
+        return 0;
     }
 
     public function getAttedancesByAsc()
@@ -160,12 +165,23 @@ trait MarcacionTrait
                     }
                 }
             }
-            return $i;
-            //$this->zklib->clearAttendance(); // Remove attendance log only if not empty            
+            return $i;         
         }
         return -1;
     }
-
+    public function deleteAttendances(){
+        $res = $this->zklib->connect();
+        $registros = 0;
+        if($res)
+        {
+            $registros = count($this->zklib->getAttendance());
+            $this->zklib->clearAttendance();
+            $this->zklib->disconnect();
+        }else{
+            return 0;
+        }
+        return $registros;
+    }
     public function saveAttendancesByAsc($desde, $hasta)
     {
         if($this->tipoestablecimiento=='master'){

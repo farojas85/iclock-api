@@ -55,20 +55,14 @@ class ZKLibraryController extends Controller
         // {
         //     abort(404);
         // }
-        
         return response()->json($usuarios,200, array('Content-Type'=>'application/json; charset=utf-8' ));
-
     }
-
     public function getAttendances() {
-
         $attendances = $this->marcacion_model->getAttedances();
-        
         if($attendances == 404)
         {
             abort(404);
         }
-        
         return response()->json($attendances,200);
     }
     public function sincronizarLocalNube(Request $request){
@@ -99,7 +93,7 @@ class ZKLibraryController extends Controller
         $marcaciones = Marcacion::where('fecha', '>', "$desde 00:00:00")
         ->where('fecha', '<=', "$hasta 23:59:59")
         ->get();
-        $i=0;;
+        $i=0;
         foreach($marcaciones as $row){
             $ruta = config('app.api_url').'/api/guardar-marcaciones';
             if($row->numero_documento!= null){
@@ -111,9 +105,10 @@ class ZKLibraryController extends Controller
                     'tipo' => $row->tipo,
                     'serial' => $row->serial,
                     'ip' => $row->ip
-                ]);            
-                $i++;
+                ]);   
+                $i++;         
             }
+            
         }
         return response()->json([
             'success' => 1,
@@ -158,17 +153,22 @@ class ZKLibraryController extends Controller
             ],200);
         }
     }
-
     public function obtenerMarcacionesApi()
     {
         $marcaciones_api= $this->marcacion_model->getAllAttendacesApi();
         return response()->json($marcaciones_api,200);
     }
-
     public function verificarDniPersonal(Request $request)
     {
         $marcaciones_api= $this->marcacion_model->verificarDniPersonal($request);
 
         return response()->json($marcaciones_api,200);
+    }
+    public function eliminarDatosBiometrico(){
+        $cantRegistos = $this->marcacion_model->deleteAttendances();
+        return response()->json([
+            'success' => 1,
+            'mensaje' => "$cantRegistos Registros Eliminados",
+        ], 200);
     }
 }

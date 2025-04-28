@@ -26,16 +26,18 @@ Route::get('/', function () {
 
 Route::get('users',[ZKLibraryController::class,'getUsers']);
 
+
+
 Route::group(['prefix' => 'attendances'],function() {
 
     Route::get('/',[ZKLibraryController::class,'getAttendances']);
-   
-    Route::post('enviarApi',function (){
-        return response()->json([
-            'success' => 1,
-            'mensaje' => 'Cargado la data'
-        ],200);
-    });
+
+    // Route::post('enviarApi',function (){
+    //     return response()->json([
+    //         'success' => 1,
+    //         'mensaje' => 'Cargado la data'
+    //     ],200);
+    // });
 
     Route::get('api-all',[ZKLibraryController::class,'obtenerMarcacionesApi']);
 });

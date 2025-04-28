@@ -3,15 +3,12 @@
 namespace App\Console\Commands;
 
 use App\Models\Marcacion;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
-
+use Illuminate\Support\Facades\Log;
 class AttendanceExport extends Command
 {
-    // private $marcacion_model;
 
-    // public function __construct() {
-    //     $this->marcacion_model = new Marcacion();
-    // }
     /**
      * The name and signature of the console command.
      *
@@ -31,14 +28,20 @@ class AttendanceExport extends Command
      */
     public function handle()
     {
-        $marcacion_model = new Marcacion();
-        $tempo = 1;
-        // while($tempo<=60){
-        //     sleep(1);
-            $estado_marcacion = $marcacion_model->saveAttendancesCronJob();
-            if($estado_marcacion == 1) {
-                //$tempo += 1;
+        $startTime = microtime(true);
+        $fechahasta = Carbon::today()->toDateString();
+        $fechadesde = Carbon::today()->subDays(3)->toDateString();
+        $hoy = Carbon::now();
+        $esViernes = $hoy->isFriday();
+        $marcacion_model = new Marcacion();    
+        $estado_marcacion = null;
+        try {
+            $estado_marcacion = $marcacion_model->saveAttendancesByAsc($fechadesde, $fechahasta);
+            if($estado_marcacion>0 && $esViernes){
+                $marcacion_model->deleteAttendances();
             }
-        //}
+        } catch (\Exception $e) {
+            Log::warning("La operación tomó más de 20 segundos y fue cancelada.");
+        }
     }
 }

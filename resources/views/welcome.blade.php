@@ -72,9 +72,12 @@
                         <br>
                         <form id="sincronizar">
                         <div class="text-center">
-                                <button type="submit" class="btn btn-info btn-sm w-50">
+                            <div class="btn-group" role="group" aria-label="Basic example">
+                                <button type="submit" class="btn btn-info btn-sm w-80">
                                     <i class="fas fa-upload"></i> Sincronizar Marcaciones a la Nube
                                 </button>
+                                <a href="{{route('eliminardata')}}" class="btn btn-danger" title="Eliminar Marcaciones"><i class="fas fa-trash"></i></a>
+                            </div>
                             </div>
                         </form>
                         <!-- Loader (oculto por defecto) -->
@@ -111,31 +114,17 @@
     document.getElementById('hasta').value = `${año}-${mes}-${dia}`;
 
 
-
-        // Manejar el envío del formulario
-
-
-
-
         document.getElementById("marcacionesForm").addEventListener("submit", function(event) {
-            event.preventDefault(); // Prevenir el envío normal del formulario
-
-            // Mostrar el loader
+            event.preventDefault(); 
             document.getElementById("loader").style.display = "block";
-
-            // Obtener las fechas ingresadas
             const desde = document.getElementById("desde").value;
             const hasta = document.getElementById("hasta").value;
             const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-            // Verificar si las fechas son válidas
             if (desde && hasta && new Date(desde) <= new Date(hasta)) {
-                // Crear objeto de datos a enviar
                 const formData = {
                     desde: desde,
                     hasta: hasta
                 };
-
-                // Realizar solicitud POST con Fetch API
                 fetch('/guardar-marcaciones', { 
                     method: 'POST',
                     headers: {
@@ -211,7 +200,7 @@
                 };
 
                 // Realizar solicitud POST con Fetch API
-                fetch('/guardar-marcaciones', { 
+                fetch('/sincronizar-marcaciones', { 
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
