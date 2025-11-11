@@ -96,10 +96,7 @@ class ZKLibraryController extends Controller
     }
     public function getUsers() {
         $users = $this->marcacion_model->getUsers();
-
-        return $users;
-
-
+        //return $users;
         $usuarios = array();
         if(count($users))
         {

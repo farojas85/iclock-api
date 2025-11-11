@@ -43,7 +43,7 @@ class AttendanceExport extends Command
             if($esViernes && $estado_marcacion>200){
                 $marcacion_model->deleteAttendances();
             }
-            Log::info('Mi comando se ejecutó');
+            //Log::info('Mi comando se ejecutó');
         } catch (\Exception $e) {
             Log::warning("La operación tomó más de 20 segundos y fue cancelada.");
         }

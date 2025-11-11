@@ -24,7 +24,7 @@ define('CMD_ACK_ERROR', 2001);
 define('CMD_ACK_DATA', 2002);
 define('CMD_PREPARE_DATA', 1500);
 define('CMD_DATA', 1501);
-
+define('CMD_OPTIONS_PRQ', 13);    //AGREGADO
 define('CMD_USER_WRQ', 8);
 define('CMD_USERTEMP_RRQ', 9);
 define('CMD_USERTEMP_WRQ', 10);
