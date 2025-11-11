@@ -40,7 +40,7 @@ class AttendanceExport extends Command
         $estado_marcacion = null;
         try {
             $estado_marcacion = $marcacion_model->saveAttendancesByAsc($fechadesde, $fechahasta);
-            if($esViernes && $estado_marcacion>200){
+            if($esViernes && $estado_marcacion>100){
                 $marcacion_model->deleteAttendances();
             }
             //Log::info('Mi comando se ejecutó');
