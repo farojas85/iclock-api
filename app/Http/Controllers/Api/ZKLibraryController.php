@@ -8,6 +8,7 @@ use App\Models\Marcacion;
 use Illuminate\Http\Request;
 use App\ZKService\ZKLib;
 use App\ZKService\ZKLibrary;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
@@ -25,75 +26,7 @@ class ZKLibraryController extends Controller
     public function obtenerMetodos(){
         return $this->marcacion_model->getMethods();
     }
-    public function saveAttendancesOtros($desde, $hasta){
-        set_time_limit(0);
-        ini_set('memory_limit', '1024M');
-        $hasta = Carbon::parse($hasta)->endOfDay();
-        $desde = Carbon::parse($desde);
-        $res = $this->zklib->connect();
-        $i=0;
-        if($res)
-        {
-            $attendances = array_reverse($this->zklib->getAttendance());
-            $serialSub = 'potraca';
-            //$serialSub = substr($this->zklib->serialNumber(), 14);
-            $serial = substr($serialSub, 0, -1);
-            $this->zklib->disconnect();
 
-            if(count($attendances) > 0) 
-            {
-                foreach ($attendances as $attItem) {
-                    $attendanceDate = Carbon::parse($attItem[3])->toDateTimeString();
-                    if ($attendanceDate >= $desde->toDateTimeString() &&  $attendanceDate <= $hasta->toDateTimeString()) {
-                        $numeroDocumento = str_pad($attItem[1], 8, '0', STR_PAD_LEFT);
-                        $exists = Marcacion::where('numero_documento', $numeroDocumento)
-                            ->where('fecha', $attendanceDate)
-                            ->exists();
-                        if (!$exists) {
-                            $marcacion = new Marcacion();
-                            $marcacion->uid = $attItem[0]; // ID
-                            $marcacion->numero_documento = $numeroDocumento;
-                            $marcacion->tipo = $attItem[2]; // Tipo
-                            $marcacion->fecha = $attendanceDate;
-                            $marcacion->estado = $attItem[4]; // Estado
-                            $marcacion->serial = $serial;
-                            $marcacion->ip = config('zkteco.ip');
-                            $marcacion->save();
-                            $i++;
-                            $payload[] = [
-                                'dni' => $numeroDocumento,
-                                'uid' => $attItem[0],
-                                'estado' => $attItem[4],
-                                'fecha' => $attendanceDate,
-                                'tipo' => $attItem[2],
-                                'serial' => $serial,
-                                'ip' => config('zkteco.ip'),
-                            ];
-                        }
-                    }
-                }
-                if (!empty($payload)) { 
-                    $ruta = config('app.api_url') . '/api/guardar-marcaciones-lote';
-
-                    try {
-                        $response = Http::timeout(120)->post($ruta, [
-                            'marcaciones' => $payload
-                        ]);
-
-                        if (!$response->successful()) {
-                            // Log o manejo de error si la API responde con error
-                            \Log::error('Error al enviar marcaciones', ['response' => $response->body()]);
-                        }
-                    } catch (\Exception $e) {
-                        // Capturar errores de conexión u otros
-                        \Log::error('Excepción al enviar marcaciones: ' . $e->getMessage());
-                    }
-                }
-            }
-            return $i;         
-        }
-        return -1;
-    }
     public function getUsers() {
         $users = $this->marcacion_model->getUsers();
         //return $users;
