@@ -56,6 +56,11 @@ return [
             'throw' => false,
         ],
 
+        'marcaciones' => [
+            'driver' => 'local',
+            'root'   => storage_path('app/marcaciones'),
+            'throw'  => false,
+        ],
     ],
 
     /*

@@ -28,6 +28,9 @@ class AttendanceExport extends Command
      */
     public function handle()
     {
+        set_time_limit(0);
+        ini_set('memory_limit', '2048M');
+        $this->info('Iniciando exportación de marcaciones...');
         $startTime = microtime(true);
         $fechahasta = Carbon::today()->toDateString();
         $fechadesde = Carbon::today()->subDays(4)->toDateString();
@@ -37,7 +40,7 @@ class AttendanceExport extends Command
         $estado_marcacion = null;
         try {
             $estado_marcacion = $marcacion_model->saveAttendancesByAsc($fechadesde, $fechahasta);
-            if($esViernes && $estado_marcacion>1000){
+            if($esViernes && $estado_marcacion>200){
                 $marcacion_model->deleteAttendances();
             }
             Log::info('Mi comando se ejecutó');

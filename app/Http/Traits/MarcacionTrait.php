@@ -7,21 +7,21 @@ use App\ZKService\ZKLibrary;
 use Carbon\Carbon;
 //use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Rats\Zkteco\Lib\ZKTeco;
 trait MarcacionTrait
 {
     private $zklib;
-    
-
     private $tipo_marcacion;
     private $tipoestablecimiento;
     public function __construct()
     {
         if(config('zkteco.establecimiento_master')){
             $this->zklib = new ZKTeco(config('zkteco.ip'));
-            $this->tipoestablecimiento='master';
+            $this->tipoestablecimiento='master'; // son los que tienen su indice de arreglo numero
         }else{
-            $this->tipoestablecimiento='otros';
+            $this->tipoestablecimiento='otros'; // son los que tienen en su indice de arreglo numero
             $this->zklib = new ZKLibrary(
                 config('zkteco.ip'),
                 config('zkteco.port'),
@@ -37,7 +37,59 @@ trait MarcacionTrait
             5 => 'SALIDA TE'
         ];
     }
-    
+    public function getMethods(){
+        dd(get_class_methods($this->zklib));
+
+        return 0;        
+    }
+    public function getVersion()
+    {
+        $res = $this->zklib->connect();
+
+        if (!$res) {
+            return response()->json([
+                'ok' => 0,
+                'mensaje' => 'No se pudo conectar con el dispositivo biométrico.'
+            ], 500);
+        }
+
+        $info = [
+            'version'        => trim($this->zklib->version(), "\0"),
+            'os_version'     => trim($this->zklib->osVersion(), "\0"),
+            'platform'       => trim($this->zklib->platform(), "\0"),
+            'fm_version'     => trim($this->zklib->fmVersion(), "\0"),
+            'work_code'      => trim($this->zklib->workCode(), "\0"),
+            'ssr'            => trim($this->zklib->ssr(), "\0"),
+            'pin_width'      => trim($this->zklib->pinWidth(), "\0"),
+            'face_function'  => trim($this->zklib->faceFunctionOn(), "\0"),
+            'serial_number'  => trim($this->zklib->serialNumber(), "\0"),
+            'device_name'    => trim($this->zklib->deviceName(), "\0"),
+            'current_time'   => $this->zklib->getTime(),
+            'ip_address'     => $this->zklib->_ip ?? 'No disponible',
+            'port'           => $this->zklib->_port ?? null,
+        ];
+
+        try {
+            if (method_exists($this->zklib, 'getMac')) {
+                $info['mac_address'] = trim($this->zklib->getMac(), "\0");
+            } else {
+                $info['mac_address'] = 'No disponible (no soportado por SDK)';
+            }
+        } catch (\Throwable $e) {
+            $info['mac_address'] = 'Error al obtener MAC: ' . $e->getMessage();
+        }
+
+        $this->zklib->disconnect();
+
+        return response()->json([
+            'ok' => 1,
+            'mensaje' => 'Información general del dispositivo obtenida correctamente.',
+            'info' => $info
+        ]);
+       
+    }
+
+
     public function getUsers()
     {
         $res = $this->zklib->connect();
@@ -51,7 +103,6 @@ trait MarcacionTrait
         }
         return array();        
     }
-
     public function getAttedances()
     {
         set_time_limit(0);
@@ -74,7 +125,6 @@ trait MarcacionTrait
         }
         return 0;
     }
-
     public function getAttedancesByAsc()
     {
         $res = $this->zklib->connect();
@@ -89,7 +139,6 @@ trait MarcacionTrait
 
         return 404;
     }
-
     public function saveAttendances()
     {
         $res = $this->zklib->connect();
@@ -129,7 +178,7 @@ trait MarcacionTrait
     }
     public function saveAttendancesMaster($desde, $hasta){
         set_time_limit(0);
-        ini_set('memory_limit', '1024M');
+        ini_set('memory_limit', '2048M');
         $hasta = Carbon::parse($hasta)->endOfDay();
         $desde = Carbon::parse($desde);
         $res = $this->zklib->connect();
@@ -142,26 +191,78 @@ trait MarcacionTrait
             $this->zklib->disconnect();
             if(count($attendances) > 0) 
             {
+                $lineas = [];
                 foreach ($attendances as $attItem) {
-                    $attendanceDate = Carbon::parse($attItem['timestamp'])->toDateTimeString();
-                    if(($this->attendanceUserVerify($attItem['uid'],$attItem['type'],
-                    Carbon::parse($attendanceDate)->toDateString())===false ) && (
-                        $attendanceDate >= $desde." 00:00:00" && $attendanceDate <= $hasta->toDateTimeString()))
+                    $ts   = Carbon::parse($attItem['timestamp']);
+                    $ini  = Carbon::parse($desde)->startOfDay();
+                    $fin  = Carbon::parse($hasta)->endOfDay();
+                    if(
+                        $ts->betweenIncluded($ini, $fin)
+                        //&& $this->attendanceUserVerify($attItem['uid'], $attItem['type'] ?? 1, $ts)
+                    )
                     {
+                        $numeroDocumento = str_pad($attItem['id'], 8, '0', STR_PAD_LEFT);
+
+
+
                         $marcacion = new Marcacion();
                         $marcacion->uid = $attItem['uid'];
-                        $marcacion->numero_documento = str_pad($attItem['id'], 8, '0', STR_PAD_LEFT);
+                        $marcacion->numero_documento = $numeroDocumento;
                         $marcacion->estado = $attItem['state'];
-                        $marcacion->fecha = $attendanceDate;
+                        $marcacion->fecha = $ts->toDateTimeString();
                         $marcacion->tipo = isset($attItem['type']) ? $attItem['type'] : 1;
                         $marcacion->serial = $serial;
                         $marcacion->ip = config('zkteco.ip');
                         $marcacion->save();
+
+
+                        $marcacion = Marcacion::firstOrCreate([
+                            'numero_documento'  => $numeroDocumento,
+                            'fecha'             => $ts->toDateTimeString()
+                        ],[
+                            'uid'               => $attItem['uid'],
+                            'estado'            => $attItem['state'],
+
+                        ]);
+
+
+                        $dt = Carbon::parse($marcacion->fecha);
+                        $lineas[] = implode(' ', [
+                            $marcacion->numero_documento,
+                            $dt->format('Y-m-d'),
+                            $dt->format('H:i:s'),
+                            $marcacion->tipo,
+                            $marcacion->estado,
+                            0
+                        ]);
                         $i++;
-                        if($marcacion->numero_documento != null)
-                        {
-                            $this->saveAttendanceInApp($marcacion);
+                        $payload[] = [
+                            'dni' => $numeroDocumento,
+                            'uid' => $attItem['uid'],
+                            'estado' => $attItem['state'],
+                            'fecha' => $marcacion->fecha,
+                            'tipo' => $marcacion->tipo,
+                            'serial' => $serial,
+                            'ip' => config('zkteco.ip'),
+                        ];
+                    }
+                }
+                if (!empty($lineas)) { // crea archivo atlog
+                    $nombre = "{$serial}_attlog_".$desde."_".$hasta->toDateString().".dat";
+                    $contenido = implode("\r\n", $lineas)."\r\n";
+                    Storage::disk('marcaciones')->put($nombre, $contenido);
+                }
+                if (!empty($payload)) { //envia al servidor web
+                    $ruta = config('app.api_url') . '/api/guardar-marcaciones-lote';
+                    try {
+                        $response = Http::timeout(120)->post($ruta, [
+                            'marcaciones' => $payload
+                        ]);
+                        if (!$response->successful()) {
+                            Log::error('Error al enviar marcaciones', ['response' => $response->body()]);
                         }
+                    } catch (\Exception $e) {
+                        Log::error('Excepción al enviar marcaciones: ' . $e->getMessage());
                     }
                 }
             }
@@ -190,7 +291,6 @@ trait MarcacionTrait
 
         }
     }
-
     public function saveAttendancesCronJob()
     {
         set_time_limit(0);
@@ -245,11 +345,10 @@ trait MarcacionTrait
         }
         return 404;
     }
-
     public function attendanceUserVerify($user_id,$tipo, $fecha)
     {
         $marcacion_count =  Marcacion::where('uid',$user_id)
-                                ->whereDate('fecha',$fecha)
+                                ->where('fecha', $fecha->toDateTimeString())
                                 ->where('tipo',$tipo)
                                 ->count()
         ;
@@ -259,7 +358,6 @@ trait MarcacionTrait
         }
         return false;
     }
-
     public function getAllAttendacesApi()
     {
         try {
@@ -283,7 +381,6 @@ trait MarcacionTrait
             // Manejar errores de excepción, como problemas de conexión
         }
     }
-
     public function getVerificarDniPersonalApp(string $dni)
     {
         //$client = new Client();
@@ -308,7 +405,6 @@ trait MarcacionTrait
             // Manejar errores de excepción, como problemas de conexión
         }
     }
-
     public function saveAttendanceInApp($marcacion) {
         set_time_limit(0);
         try {
@@ -322,11 +418,7 @@ trait MarcacionTrait
                 'serial' => $marcacion->serial,
                 'ip' => $marcacion->ip,
             ]);
-
-            //return $ruta;
-            // Verificar si la respuesta tiene un código 200 (éxito)
             if ($response->getStatusCode() == 200) {
-
                return $response->json();
                  //json_decode($response->getBody(), true);
                 // Aquí puedes trabajar con los datos de respuesta

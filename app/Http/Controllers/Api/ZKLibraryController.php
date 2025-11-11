@@ -21,16 +21,88 @@ class ZKLibraryController extends Controller
 
     public function __construct() {
         $this->marcacion_model = new Marcacion();
-    }    
+    }
+    public function obtenerMetodos(){
+        return $this->marcacion_model->getMethods();
+    }
+    public function saveAttendancesOtros($desde, $hasta){
+        set_time_limit(0);
+        ini_set('memory_limit', '1024M');
+        $hasta = Carbon::parse($hasta)->endOfDay();
+        $desde = Carbon::parse($desde);
+        $res = $this->zklib->connect();
+        $i=0;
+        if($res)
+        {
+            $attendances = array_reverse($this->zklib->getAttendance());
+            $serialSub = 'potraca';
+            //$serialSub = substr($this->zklib->serialNumber(), 14);
+            $serial = substr($serialSub, 0, -1);
+            $this->zklib->disconnect();
 
+            if(count($attendances) > 0) 
+            {
+                foreach ($attendances as $attItem) {
+                    $attendanceDate = Carbon::parse($attItem[3])->toDateTimeString();
+                    if ($attendanceDate >= $desde->toDateTimeString() &&  $attendanceDate <= $hasta->toDateTimeString()) {
+                        $numeroDocumento = str_pad($attItem[1], 8, '0', STR_PAD_LEFT);
+                        $exists = Marcacion::where('numero_documento', $numeroDocumento)
+                            ->where('fecha', $attendanceDate)
+                            ->exists();
+                        if (!$exists) {
+                            $marcacion = new Marcacion();
+                            $marcacion->uid = $attItem[0]; // ID
+                            $marcacion->numero_documento = $numeroDocumento;
+                            $marcacion->tipo = $attItem[2]; // Tipo
+                            $marcacion->fecha = $attendanceDate;
+                            $marcacion->estado = $attItem[4]; // Estado
+                            $marcacion->serial = $serial;
+                            $marcacion->ip = config('zkteco.ip');
+                            $marcacion->save();
+                            $i++;
+                            $payload[] = [
+                                'dni' => $numeroDocumento,
+                                'uid' => $attItem[0],
+                                'estado' => $attItem[4],
+                                'fecha' => $attendanceDate,
+                                'tipo' => $attItem[2],
+                                'serial' => $serial,
+                                'ip' => config('zkteco.ip'),
+                            ];
+                        }
+                    }
+                }
+                if (!empty($payload)) { 
+                    $ruta = config('app.api_url') . '/api/guardar-marcaciones-lote';
+
+                    try {
+                        $response = Http::timeout(120)->post($ruta, [
+                            'marcaciones' => $payload
+                        ]);
+
+                        if (!$response->successful()) {
+                            // Log o manejo de error si la API responde con error
+                            \Log::error('Error al enviar marcaciones', ['response' => $response->body()]);
+                        }
+                    } catch (\Exception $e) {
+                        // Capturar errores de conexión u otros
+                        \Log::error('Excepción al enviar marcaciones: ' . $e->getMessage());
+                    }
+                }
+            }
+            return $i;         
+        }
+        return -1;
+    }
     public function getUsers() {
         $users = $this->marcacion_model->getUsers();
 
-        $usuarios = array();
+        return $users;
 
+
+        $usuarios = array();
         if(count($users))
         {
-
             foreach($users as $user)
             {
                 if(config('zkteco.establecimiento_master')){
@@ -49,13 +121,13 @@ class ZKLibraryController extends Controller
 
             }
         }
-        //return  json_encode($usuarios,JSON_UNESCAPED_UNICODE);
-        //dd($usuarios);
-        // if($users == 404)
-        // {
-        //     abort(404);
-        // }
         return response()->json($usuarios,200, array('Content-Type'=>'application/json; charset=utf-8' ));
+    }
+    public function getversion(){
+        $response = $this->marcacion_model->getversion();
+        $data = $response->getData(true);
+        return view('info', compact('data'));
+
     }
     public function getAttendances() {
         $attendances = $this->marcacion_model->getAttedances();
@@ -70,7 +142,7 @@ class ZKLibraryController extends Controller
             'desde' => 'required|date|before_or_equal:' . now()->toDateString(),
             'hasta' => 'required|date|after_or_equal:desde|before_or_equal:' . now()->toDateString(),
         ];
-            $mensajes = [
+        $mensajes = [
             'desde.required' => 'El campo de fecha de inicio es obligatorio.',
             'desde.date' => 'La fecha de inicio debe ser una fecha válida.',
             'desde.before_or_equal' => 'La fecha de inicio no puede ser posterior a hoy.',
@@ -80,6 +152,8 @@ class ZKLibraryController extends Controller
             'hasta.after_or_equal' => 'La fecha de fin no puede ser anterior a la fecha de inicio.',
             'hasta.before_or_equal' => 'La fecha de fin no puede ser posterior a hoy.',
         ];
+        set_time_limit(0);
+        ini_set('memory_limit', '2048M');
         $validator = Validator::make($request->all(), $reglas, $mensajes);
         if ($validator->fails()) {
             return response()->json([
@@ -90,30 +164,44 @@ class ZKLibraryController extends Controller
         }
         $desde = $request->desde;
         $hasta = $request->hasta;
-        $marcaciones = Marcacion::where('fecha', '>', "$desde 00:00:00")
-        ->where('fecha', '<=', "$hasta 23:59:59")
-        ->get();
-        $i=0;
-        foreach($marcaciones as $row){
-            $ruta = config('app.api_url').'/api/guardar-marcaciones';
-            if($row->numero_documento!= null){
-                $response = Http::timeout(20)->post($ruta,[
-                    'dni' => $row->numero_documento,
-                    'uid' => $row->uid,
-                    'estado' => $row->estado,
-                    'fecha' => $row->fecha,
-                    'tipo' => $row->tipo,
-                    'serial' => $row->serial,
-                    'ip' => $row->ip
-                ]);   
-                $i++;         
+
+        $marcaciones = Marcacion::whereBetween('fecha', ["$desde 00:00:00", "$hasta 23:59:59"])
+            ->whereNotNull('numero_documento')
+            ->get(['numero_documento','uid','estado','fecha','tipo','serial','ip']);
+        $rutaLote = config('app.api_url').'/api/guardar-marcaciones-lote';
+        $insertadasTotal = 0;
+        // Enviar por lotes para no reventar el payload
+        foreach ($marcaciones->chunk(1000) as $chunk) {
+            $payload = [
+                'marcaciones' => $chunk->map(function ($m) {
+                    return [
+                        'dni'    => $m->numero_documento,
+                        'uid'    => $m->uid,
+                        'estado' => $m->estado,
+                        'fecha'  => $m->fecha,   // asegúrate del formato que espera el API
+                        'tipo'   => $m->tipo,
+                        'serial' => $m->serial,
+                        'ip'     => $m->ip,
+                    ];
+                })->values()->all()
+            ];
+
+            $response = Http::timeout(120)->retry(3, 1000)->post($rutaLote, $payload);
+
+            if ($response->successful()) {
+                $insertadasTotal += (int) $response->json('insertadas', 0);
+            } else {
+                Log::error('Error sync marcaciones', [
+                    'status' => $response->status(),
+                    'body' => $response->body()
+                ]);
             }
-            
         }
+
         return response()->json([
             'success' => 1,
-            'mensaje' => "Guardado satisfactoriamente, $i registros procesados"
-        ],200);
+            'mensaje' => "Guardado satisfactoriamente, {$insertadasTotal} registros procesados"
+        ], 200);
     }
     public function saveAttendandes(Request $request) {
         set_time_limit(0);
@@ -122,7 +210,7 @@ class ZKLibraryController extends Controller
             'desde' => 'required|date|before_or_equal:' . now()->toDateString(),
             'hasta' => 'required|date|after_or_equal:desde|before_or_equal:' . now()->toDateString(),
         ];
-            $mensajes = [
+        $mensajes = [
             'desde.required' => 'El campo de fecha de inicio es obligatorio.',
             'desde.date' => 'La fecha de inicio debe ser una fecha válida.',
             'desde.before_or_equal' => 'La fecha de inicio no puede ser posterior a hoy.',
@@ -142,7 +230,9 @@ class ZKLibraryController extends Controller
         }
         $desde = $request->desde;
         $hasta = $request->hasta;
+
         $estado_save = $this->marcacion_model->saveAttendancesByAsc($desde, $hasta);
+        
         if($estado_save == -1){
             abort(404);
         }
