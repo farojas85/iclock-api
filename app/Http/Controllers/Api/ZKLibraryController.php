@@ -173,13 +173,11 @@ class ZKLibraryController extends Controller
             ],200);
         }
     }
-    public function obtenerMarcacionesApi()
-    {
+    public function obtenerMarcacionesApi(){
         $marcaciones_api= $this->marcacion_model->getAllAttendacesApi();
         return response()->json($marcaciones_api,200);
     }
-    public function verificarDniPersonal(Request $request)
-    {
+    public function verificarDniPersonal(Request $request){
         $marcaciones_api= $this->marcacion_model->verificarDniPersonal($request);
 
         return response()->json($marcaciones_api,200);

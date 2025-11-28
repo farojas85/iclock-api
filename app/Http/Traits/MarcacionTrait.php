@@ -3,13 +3,12 @@
 namespace App\Http\Traits;
 
 use App\Models\Marcacion;
-use App\ZKService\ZKLibrary;
+use App\ZKService\ZKLibrary; // propio
 use Carbon\Carbon;
-//use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Rats\Zkteco\Lib\ZKTeco;
+use Rats\Zkteco\Lib\ZKTeco;// vendor
 trait MarcacionTrait
 {
     private $zklib;
@@ -84,14 +83,12 @@ trait MarcacionTrait
     }
     public function getVersionOtros(){
         $res = $this->zklib->connect();
-
         if (!$res) {
             return response()->json([
                 'ok' => 0,
                 'mensaje' => 'No se pudo conectar con el dispositivo biométrico.'
             ], 500);
         }
-
         try {
             $info = [
                 'version'        => trim($this->zklib->getVersion(), "\0"),
@@ -142,11 +139,32 @@ trait MarcacionTrait
         $users = array();
         if($res)
         {
-            $users = $this->zklib->getUser();
+            $users = $this->zklib->getUser(4);
             $this->zklib->disconnect();
             return $users;
         }
         return array();        
+    }
+    public function getUser()
+    {
+        $res = $this->zklib->connect();
+        if (!$res) {
+            return [];
+        }
+
+        // Siempre trae todos
+        $users = $this->zklib->getUser();
+        $this->zklib->disconnect();
+
+        // Filtrar por UID 4
+        $uidBuscado = 4;
+        foreach ($users as $user) {
+            if ($user['uid'] == $uidBuscado) {
+                return $user; // devuelves solo ese
+            }
+        }
+
+        return []; // o null si prefieres
     }
     public function getAttedances(){
         set_time_limit(0);
@@ -461,4 +479,5 @@ trait MarcacionTrait
         }
         return $insertadasTotal;
     }
+    
 }
