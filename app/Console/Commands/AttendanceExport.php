@@ -33,7 +33,7 @@ class AttendanceExport extends Command
         $this->info('Iniciando exportación de marcaciones...');
         $startTime = microtime(true);
         $fechahasta = Carbon::today()->toDateString();
-        $fechadesde = Carbon::today()->subDays(4)->toDateString();
+        $fechadesde = Carbon::today()->subDays(5)->toDateString();
         $hoy = Carbon::now();
         $esViernes = $hoy->isFriday();
         $marcacion_model = new Marcacion();    
